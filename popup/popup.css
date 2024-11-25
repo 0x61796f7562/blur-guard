@@ -1,0 +1,87 @@
+@font-face {
+	font-family: inter-regular;
+	src: url(../fonts/Inter-Regular.otf);
+}
+
+@font-face {
+	font-family: poppins-regular;
+	src: url(../fonts/Poppins-Regular.otf);
+}
+
+html {
+	font-family: poppins-regular;
+}
+
+.switch {
+	position: relative;
+	display: inline-block;
+	width: 40px;
+	height: 24px;
+}
+
+.switch input {
+	opacity: 0;
+	width: 0;
+	height: 0;
+}
+
+.switch:disabled {
+	filter: grayscale(50%);
+}
+
+.slider {
+	position: absolute;
+	cursor: pointer;
+	top: 0;
+	left: 0;
+	bottom: 0;
+	right: 0;
+	background-color: #ccc;
+	transition: .4s;
+}
+
+.slider:before {
+	position: absolute;
+	content: "";
+	height: 18px;
+	width: 18px;
+	left: 4px;
+	bottom: 3px;
+	background-color: white;
+	transition: .4s;
+}
+
+input:checked+.slider {
+	background-color: #2196F3;
+}
+
+input:focus+.slider {
+	box-shadow: 0 0 1px #2196F3;
+}
+
+input:checked+.slider:before {
+	transform: translateX(14px);
+}
+
+.slider.round {
+	border-radius: 34px;
+}
+
+.slider.round:before {
+	border-radius: 50%;
+}
+
+.option {
+	display: flex;
+	gap: 10px;
+	justify-content: space-between;
+}
+
+.options {
+	width: 200px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding-inline: 10px;
+	padding-block: 5px;
+}

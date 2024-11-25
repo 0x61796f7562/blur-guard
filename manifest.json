@@ -1,0 +1,41 @@
+{
+	"manifest_version": 2,
+	"name": "Blur Guard",
+	"description": "Blur distractions",
+	"version": "1.0",
+	"permissions": [
+		"<all_urls>",
+		"activeTab",
+		"tabs",
+		"storage",
+		"scripting",
+		"menus"
+	],
+	"background": { "scripts": ["background/background.js"] },
+	"commands": {
+		"blur_toggle": {
+			"suggested_key": { "default": "Ctrl+Alt+B" },
+			"description": "Toggle Blur"
+		}
+	},
+	"icons": {
+		"64": "icons/blur_64.png"
+	},
+	"browser_action": {
+		"default_icon": "icons/blur_32.png",
+		"default_title": "Blur Guard",
+		"default_popup": "popup/popup.html"
+	},
+	"content_scripts": [
+		{
+			"matches": ["<all_urls>"],
+			"js": ["content_scripts/js/blur.js"],
+			"run_at": "document_end"
+		},
+		{
+			"matches": ["<all_urls>"],
+			"css": ["content_scripts/css/classes.css"],
+			"run_at": "document_start"
+		}
+	]
+}
