@@ -120,7 +120,7 @@ function updateGlobalOptions() {
 const sendBlurToggleCmd = (tabId, isGlobal = false) => {
 	return browser.tabs
 		.sendMessage(tabId, { command: "blur_toggle", isGlobal })
-		.catch((_) => {});
+		.catch(() => {});
 };
 
 (() => {
@@ -145,38 +145,14 @@ const sendBlurToggleCmd = (tabId, isGlobal = false) => {
 	blurToggleSwitchInputGlobal.addEventListener("click", (e) => {
 		browser.tabs.query({ url: `*://*/*` }, (tabs) => {
 			if (e.target.checked) {
-				browser.scripting
-					.getRegisteredContentScripts({
-						ids: ["css_for_body_blur"],
-					})
-					.then((contentScripts) => {
-						if (!contentScripts[0]) {
-							browser.scripting
-								.registerContentScripts([
-									{
-										id: "css_for_body_blur",
-										matches: ["<all_urls>"],
-										css: [
-											"content_scripts/css/body_blur.css",
-										],
-										runAt: "document_start",
-									},
-								])
-								.then(() => {
-									Promise.allSettled(
-										tabs.map((tab) => {
-											const { id: tabId } = tab;
-											return sendBlurToggleCmd(
-												tabId,
-												true,
-											);
-										}),
-									).then(() => {
-										updateGlobalOptions();
-									});
-								});
-						}
-					});
+				Promise.allSettled(
+					tabs.map((tab) => {
+						const { id: tabId } = tab;
+						return sendBlurToggleCmd(tabId, true);
+					}),
+				).then(() => {
+					updateGlobalOptions();
+				});
 			} else {
 				Promise.allSettled(
 					tabs.map((tab) => {
@@ -184,21 +160,7 @@ const sendBlurToggleCmd = (tabId, isGlobal = false) => {
 						return sendBlurToggleCmd(tabId, true);
 					}),
 				).then(() => {
-					browser.scripting
-						.getRegisteredContentScripts({
-							ids: ["css_for_body_blur"],
-						})
-						.then((contentScripts) => {
-							if (contentScripts[0]) {
-								browser.scripting
-									.unregisterContentScripts({
-										ids: ["css_for_body_blur"],
-									})
-									.then(() => {
-										updateGlobalOptions();
-									});
-							}
-						});
+					updateGlobalOptions();
 				});
 			}
 		});

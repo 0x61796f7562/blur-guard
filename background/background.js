@@ -74,15 +74,18 @@ function removeContextMenu() {
 (() => {
 	createContextMenu();
 
-	browser.tabs.onUpdated.addListener((_tabId, _info, { url, status }) => {
-		if (status == "complete") {
-			if (!isAllowed(url)) {
-				removeContextMenu();
-			} else {
-				createContextMenu();
+	browser.tabs.onUpdated.addListener(
+		(_tabId, _info, tab) => {
+			if (tab.status == "complete") {
+				if (!isAllowed(tab.url)) {
+					removeContextMenu();
+				} else {
+					createContextMenu();
+				}
 			}
-		}
-	});
+		},
+		{ properties: ["status", "url"] },
+	);
 
 	browser.tabs.onActivated.addListener(({ tabId }) => {
 		browser.tabs.get(tabId).then((tab) => {
@@ -92,23 +95,6 @@ function removeContextMenu() {
 				createContextMenu();
 			}
 		});
-	});
-
-	browser.storage.local.get("global_options").then((globalOptions) => {
-		let globalOptionsValue = globalOptions.global_options;
-		if (
-			!globalOptionsValue ||
-			(globalOptionsValue && globalOptionsValue.enabled)
-		) {
-			browser.scripting.registerContentScripts([
-				{
-					id: "css_for_body_blur",
-					matches: ["<all_urls>"],
-					css: ["content_scripts/css/body_blur.css"],
-					runAt: "document_start",
-				},
-			]);
-		}
 	});
 
 	browser.commands.onCommand.addListener((command) => {

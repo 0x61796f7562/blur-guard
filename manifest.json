@@ -30,11 +30,6 @@
 		{
 			"matches": ["<all_urls>"],
 			"js": ["content_scripts/js/blur.js"],
-			"run_at": "document_end"
-		},
-		{
-			"matches": ["<all_urls>"],
-			"css": ["content_scripts/css/classes.css"],
 			"run_at": "document_start"
 		}
 	]

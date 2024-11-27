@@ -1,13 +1,11 @@
-const blurEffectClass = "blur_guard_blur";
+const filterValue = "blur(15px)";
+
 function canIncludeDistraction(node) {
 	computedStyle = getComputedStyle(node);
 	if (
 		computedStyle.backgroundImage.toLowerCase().includes("url") ||
 		computedStyle.background.toLowerCase().includes("url") ||
-		node.tagName == "IMG" ||
-		node.tagName == "PICTURE" ||
-		node.tagname == "VIDEO" ||
-		node.tagName == "IFRAME"
+		["IMG", "PICTURE", "VIDEO", "IFRAME"].includes(node.tagName)
 	) {
 		return true;
 	}
@@ -20,7 +18,7 @@ function setBlurFilter(rootNode) {
 		const node = nodesStack.pop();
 		if (node.nodeType == Node.ELEMENT_NODE) {
 			if (canIncludeDistraction(node) && node.tagName != "BODY") {
-				node.classList.add(blurEffectClass);
+				node.style.setProperty("filter", filterValue, "important");
 			}
 			for (childNode of node.childNodes) nodesStack.push(childNode);
 		}
@@ -33,7 +31,7 @@ function unsetBlurFilter(rootNode) {
 		const node = nodesStack.pop();
 		if (node.nodeType == Node.ELEMENT_NODE) {
 			if (canIncludeDistraction(node) && node.tagName != "BODY") {
-				node.classList.remove(blurEffectClass);
+				node.style.removeProperty("filter");
 			}
 			for (childNode of node.childNodes) nodesStack.push(childNode);
 		}
@@ -42,7 +40,7 @@ function unsetBlurFilter(rootNode) {
 
 const observer = new MutationObserver((mutations) => {
 	unobserve(() => {
-		for (const { type, addedNodes, target } of mutations) {
+		for (const { type, attributeName, addedNodes, target } of mutations) {
 			if (type == "childList") {
 				if (addedNodes) {
 					addedNodes.forEach((node) => {
@@ -50,7 +48,13 @@ const observer = new MutationObserver((mutations) => {
 					});
 				}
 			} else if (type == "attributes") {
-				setBlurFilter(target);
+				if (attributeName == "style") {
+					if (canIncludeDistraction(target)) {
+						if (getComputedStyle(target).filter != filterValue) {
+							setBlurFilter(target);
+						}
+					}
+				}
 			}
 		}
 	});
@@ -75,13 +79,19 @@ function unobserve(callback) {
 }
 
 function applyPageBlur() {
+	const bodyBlurStyle = document.createElement("style");
+	bodyBlurStyle.textContent = `body { filter: ${filterValue} !important; }`;
+	document.head.appendChild(bodyBlurStyle);
+
 	if (document.readyState == "loading") {
 		document.addEventListener("DOMContentLoaded", () => {
 			setBlurFilter(document.body);
+			bodyBlurStyle.remove();
 			startObserver();
 		});
 	} else {
 		setBlurFilter(document.body);
+		bodyBlurStyle.remove();
 		startObserver();
 	}
 }
@@ -95,7 +105,7 @@ const selectionBox = document.createElement("div");
 const overlay = document.createElement("div");
 function showSelectionBox(element) {
 	let boundingRect = element.getBoundingClientRect();
-	element.style.cursor = "crosshair";
+	element.style.setProperty("cursor", "crosshair");
 	selectionBox.style.pointerEvents = "none";
 	selectionBox.style.outline = "1px solid yellow";
 	selectionBox.style.backgroundColor = "rgba(255, 255, 0, 0.2)";
@@ -123,7 +133,7 @@ function showSelectionBox(element) {
 function removeSelectionBox(element) {
 	overlay.remove();
 	selectionBox.remove();
-	if (element) element.style.cursor = "";
+	if (element) element.style.removeProperty("cursor");
 }
 
 function startElementSelection() {
@@ -175,9 +185,6 @@ function startElementSelection() {
 			} else {
 				applyPageBlur();
 			}
-			document.body.style.setProperty("filter", "none", "important");
-		} else {
-			document.body.style.setProperty("filter", "none", "important");
 		}
 	});
 

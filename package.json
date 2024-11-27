@@ -4,7 +4,7 @@
 	"description": "",
 	"main": "index.js",
 	"scripts": {
-		"start": "web-ext run",
+		"start": "web-ext run --firefox=firefox-dev",
 		"lint": "web-ext lint",
 		"build": "web-ext build",
 		"serve_popup": "live-server --open=popup/popup.html"
