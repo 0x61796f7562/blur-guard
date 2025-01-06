@@ -1,4 +1,5 @@
 const filterValue = "blur(15px)";
+const firstPageLoadDelay = 1000;
 
 function canIncludeDistraction(node) {
 	computedStyle = getComputedStyle(node);
@@ -13,32 +14,79 @@ function canIncludeDistraction(node) {
 }
 
 function setBlurFilter(rootNode) {
-	const nodesStack = [rootNode];
-	while (nodesStack.length) {
-		const node = nodesStack.pop();
-		if (node.nodeType == Node.ELEMENT_NODE) {
-			if (canIncludeDistraction(node) && node.tagName != "BODY") {
-				node.style.setProperty("filter", filterValue, "important");
-			}
-			for (childNode of node.childNodes) nodesStack.push(childNode);
+	if (
+		rootNode.nodeType == Node.ELEMENT_NODE &&
+		canIncludeDistraction(rootNode) &&
+		rootNode.tagName != "BODY"
+	) {
+		rootNode.style.setProperty("filter", filterValue, "important");
+		intersectionObserver.observe(rootNode);
+	}
+
+	const treeWalker = document.createTreeWalker(
+		rootNode,
+		NodeFilter.SHOW_ELEMENT,
+	);
+
+	while (treeWalker.nextNode()) {
+		const node = treeWalker.currentNode;
+		if (canIncludeDistraction(node) && node.tagName != "BODY") {
+			node.style.setProperty("filter", filterValue, "important");
+			intersectionObserver.observe(node);
+		}
+		if (node.openOrClosedShadowRoot && node.tagName != "VIDEO") {
+			mutationObserver.observe(
+				node.openOrClosedShadowRoot,
+				mutationObserverOptions,
+			);
+			setBlurFilter(node.openOrClosedShadowRoot);
 		}
 	}
 }
 
 function unsetBlurFilter(rootNode) {
-	const nodesStack = [rootNode];
-	while (nodesStack.length) {
-		const node = nodesStack.pop();
-		if (node.nodeType == Node.ELEMENT_NODE) {
-			if (canIncludeDistraction(node) && node.tagName != "BODY") {
-				node.style.removeProperty("filter");
-			}
-			for (childNode of node.childNodes) nodesStack.push(childNode);
+	if (
+		rootNode.nodeType == Node.ELEMENT_NODE &&
+		canIncludeDistraction(rootNode) &&
+		rootNode.tagName != "BODY"
+	) {
+		rootNode.style.removeProperty("filter");
+		intersectionObserver.unobserve(rootNode);
+	}
+
+	const treeWalker = document.createTreeWalker(
+		rootNode,
+		NodeFilter.SHOW_ELEMENT,
+	);
+
+	while (treeWalker.nextNode()) {
+		const node = treeWalker.currentNode;
+		if (canIncludeDistraction(node) && node.tagName != "BODY") {
+			node.style.removeProperty("filter");
+			intersectionObserver.unobserve(node);
+		}
+		if (node.openOrClosedShadowRoot && node.tagName != "VIDEO") {
+			unsetBlurFilter(node.openOrClosedShadowRoot);
 		}
 	}
 }
 
-const observer = new MutationObserver((mutations) => {
+const intersectionObserver = new IntersectionObserver(
+	(entries) => {
+		entries.forEach((entry) => {
+			if (entry.isIntersecting) setBlurFilter(entry.target);
+		});
+	},
+	{ threshold: 0 },
+);
+
+const mutationObserverOptions = {
+	childList: true,
+	subtree: true,
+	attributes: true,
+};
+
+const mutationObserver = new MutationObserver((mutations) => {
 	unobserve(() => {
 		for (const { type, attributeName, addedNodes, target } of mutations) {
 			if (type == "childList") {
@@ -61,15 +109,12 @@ const observer = new MutationObserver((mutations) => {
 });
 
 function startObserver() {
-	observer.observe(document.body, {
-		childList: true,
-		subtree: true,
-		attributes: true,
-	});
+	mutationObserver.observe(document.body, mutationObserverOptions);
 }
 
 function stopObserver() {
-	observer.disconnect();
+	mutationObserver.disconnect();
+	intersectionObserver.disconnect();
 }
 
 function unobserve(callback) {
@@ -81,13 +126,15 @@ function unobserve(callback) {
 function applyPageBlur() {
 	const bodyBlurStyle = document.createElement("style");
 	bodyBlurStyle.textContent = `body { filter: ${filterValue} !important; }`;
-	document.head.appendChild(bodyBlurStyle);
+	document.head && document.head.appendChild(bodyBlurStyle);
 
 	if (document.readyState == "loading") {
 		document.addEventListener("DOMContentLoaded", () => {
-			setBlurFilter(document.body);
-			bodyBlurStyle.remove();
-			startObserver();
+			setTimeout(() => {
+				setBlurFilter(document.body);
+				bodyBlurStyle.remove();
+				startObserver();
+			}, firstPageLoadDelay);
 		});
 	} else {
 		setBlurFilter(document.body);
@@ -140,10 +187,10 @@ function startElementSelection() {
 	const selectionAbortController = new AbortController();
 	let selectedElement;
 	document.body.addEventListener(
-		"mouseover",
+		"mousemove",
 		(e) => {
 			e.stopPropagation();
-			selectedElement = e.target;
+			selectedElement = e.composed ? e.composedPath()[0] : e.target;
 			unobserve(() => {
 				showSelectionBox(selectedElement);
 			});
@@ -226,7 +273,9 @@ function startElementSelection() {
 							e.preventDefault();
 							e.stopImmediatePropagation();
 							unobserve(() => {
-								setBlurFilter(e.target);
+								setBlurFilter(
+									e.composed ? e.composedPath()[0] : e.target,
+								);
 								stopElementSelection();
 							});
 						},
@@ -240,7 +289,9 @@ function startElementSelection() {
 							e.preventDefault();
 							e.stopImmediatePropagation();
 							unobserve(() => {
-								unsetBlurFilter(e.target);
+								unsetBlurFilter(
+									e.composed ? e.composedPath()[0] : e.target,
+								);
 								stopElementSelection();
 							});
 						},
