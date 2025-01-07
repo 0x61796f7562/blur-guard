@@ -1,7 +1,7 @@
 {
 	"manifest_version": 2,
 	"name": "Blur Guard",
-	"description": "Blur distractions",
+	"description": "Enhance your browsing experience and improve focus by blurring distractions including images, videos and embedded content in the form of iframes.",
 	"version": "1.0",
 	"permissions": [
 		"<all_urls>",
