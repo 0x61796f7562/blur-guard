@@ -1,7 +1,10 @@
 <div align="center">
-	<img width="70" alt="Dark Reader's mascot" src="https://github.com/user-attachments/assets/71765e5a-c63c-4a16-8051-5967cab11c59">
+	<a rel="noreferrer noopener" href="https://addons.mozilla.org/firefox/addon/blur-guard/">
+		<img width="70" alt="Dark Reader's mascot" src="https://github.com/user-attachments/assets/71765e5a-c63c-4a16-8051-5967cab11c59">
+	</a>
 	<h1 align="center">Blur Guard</h1>
 </div>
+</br>
 <p align="center">
 	<a rel="noreferrer noopener" href="https://addons.mozilla.org/firefox/addon/blur-guard/">
 		<img width="200" alt="Firefox Add-ons" src="https://github.com/user-attachments/assets/c3a425ad-4e47-4a2f-8628-2033131ae80f">
