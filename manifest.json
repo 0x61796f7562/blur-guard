@@ -3,6 +3,11 @@
 	"name": "Blur Guard",
 	"description": "Enhance your browsing experience and improve focus by blurring distractions including images, videos and embedded content in the form of iframes.",
 	"version": "1.0",
+	"browser_specific_settings": {
+		"gecko": {
+			"id": "{e584d1a6-1683-4f88-a312-e7402fc7ca12}"
+		}
+	},
 	"permissions": [
 		"<all_urls>",
 		"activeTab",
