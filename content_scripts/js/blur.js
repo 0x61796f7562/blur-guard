@@ -13,6 +13,8 @@ function canIncludeDistraction(node) {
 	return false;
 }
 
+const selectorCache = new Map();
+
 async function isBlured(element) {
 	if (!element) return false;
 	const hostname = window.location.hostname;
@@ -20,9 +22,32 @@ async function isBlured(element) {
 	const hostnameOptionsValue = options[hostname];
 	if (!hostnameOptionsValue) return false;
 	if (!hostnameOptionsValue.blured_elements) return false;
-	return hostnameOptionsValue.blured_elements.some((selector) =>
-		Boolean(element.closest(selector)),
-	);
+	return hostnameOptionsValue.blured_elements.some((elementPathStr) => {
+		const elementPath = elementPathStr.split(" >>> ");
+		if (elementPath.length == 1) {
+			const bluredElement = document.querySelector(elementPath[0]);
+			return bluredElement && bluredElement.contains(element);
+		} else {
+			const selectorCacheKey = elementPath;
+			if (selectorCache.has(selectorCacheKey)) {
+				const cachedElement = selectorCache.get(selectorCacheKey);
+				return cachedElement.contains(element);
+			}
+			let currentElement = document;
+			for (let i = 0; i < elementPath.length; i++) {
+				let selectorPart = elementPath[i];
+				currentElement = currentElement.querySelector(selectorPart);
+				if (currentElement) {
+					currentElement =
+						currentElement.openOrClosedShadowRoot || currentElement;
+				} else return false;
+				if (i == elementPath.length - 1) {
+					selectorCache.set(selectorCacheKey, currentElement);
+					return currentElement.contains(element);
+				}
+			}
+		}
+	});
 }
 
 async function isUnblured(element) {
@@ -32,9 +57,32 @@ async function isUnblured(element) {
 	const hostnameOptionsValue = options[hostname];
 	if (!hostnameOptionsValue) return false;
 	if (!hostnameOptionsValue.unblured_elements) return false;
-	return hostnameOptionsValue.unblured_elements.some((selector) =>
-		Boolean(element.closest(selector)),
-	);
+	return hostnameOptionsValue.unblured_elements.some((elementPathStr) => {
+		const elementPath = elementPathStr.split(" >>> ");
+		if (elementPath.length == 1) {
+			const unbluredElement = document.querySelector(elementPath[0]);
+			return unbluredElement && unbluredElement.contains(element);
+		} else {
+			const selectorCacheKey = elementPath;
+			if (selectorCache.has(selectorCacheKey)) {
+				const cachedElement = selectorCache.get(selectorCacheKey);
+				return cachedElement.contains(element);
+			}
+			let currentElement = document;
+			for (let i = 0; i < elementPath.length; i++) {
+				let selectorPart = elementPath[i];
+				currentElement = currentElement.querySelector(selectorPart);
+				if (currentElement) {
+					currentElement =
+						currentElement.openOrClosedShadowRoot || currentElement;
+				} else return false;
+				if (i == elementPath.length - 1) {
+					selectorCache.set(selectorCacheKey, currentElement);
+					return currentElement.contains(element);
+				}
+			}
+		}
+	});
 }
 
 function setBlurFilter(rootNode, skipSavedElements = false) {
@@ -252,22 +300,24 @@ function startElementSelection() {
 }
 
 function getCSSSelector(element) {
-	const path = [];
+	let path = "";
+	let nextPathChar = ">";
+	const pathPart = () => `${path ? `${nextPathChar} ${path}` : ""}`;
 	while (element) {
 		if (element === document.documentElement) {
-			path.unshift(element.tagName.toLowerCase());
+			path = `${element.tagName.toLowerCase()} ${pathPart()}`;
 			break;
 		}
 
 		if (element.getRootNode() instanceof ShadowRoot) {
-			const shadowHost = element.getRootNode().host;
-			path.unshift(`:host ${element.tagName.toLowerCase()}`);
-			element = shadowHost;
+			path = `${element.nodeName.toLowerCase()} ${pathPart()}`;
+			element = element.getRootNode().host;
+			nextPathChar = ">>>";
 		} else {
 			let selector = element.tagName.toLowerCase();
 			if (element.id) {
 				selector = `#${element.id}`;
-				path.unshift(selector);
+				path = `${selector} ${pathPart()}`;
 				break;
 			} else {
 				let sibling = element;
@@ -277,18 +327,19 @@ function getCSSSelector(element) {
 					if (sibling.nodeName.toLowerCase() === selector) nth++;
 				}
 				if (nth !== 1) selector += `:nth-of-type(${nth})`;
-				path.unshift(selector);
+				path = `${selector} ${pathPart()}`;
 			}
 			element = element.parentElement;
+			nextPathChar = ">";
 		}
 	}
-	return path.join(" > ");
+	return path.trim();
 }
 
 function saveBluredElement(element) {
 	const hostname = window.location.hostname;
 	browser.storage.local.get([hostname]).then((options) => {
-		let hostnameOptionsValue = options[hostname] || {};
+		let hostnameOptionsValue = options[hostname] || { enabled: true };
 		hostnameOptionsValue = {
 			...hostnameOptionsValue,
 			blured_elements: [
@@ -314,7 +365,7 @@ function saveBluredElement(element) {
 function saveUnbluredElement(element) {
 	const hostname = window.location.hostname;
 	browser.storage.local.get([hostname]).then((options) => {
-		let hostnameOptionsValue = options[hostname] || {};
+		let hostnameOptionsValue = options[hostname] || { enabled: true };
 		hostnameOptionsValue = {
 			...hostnameOptionsValue,
 			unblured_elements: [

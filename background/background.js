@@ -48,7 +48,7 @@ function isAllowed(url) {
 function createContextMenu() {
 	browser.menus.create({
 		id: "unblur",
-		title: "Unblur",
+		title: "Unblur element",
 		onclick(_, tab) {
 			browser.tabs.sendMessage(tab.id, {
 				command: "unblur_element",
@@ -58,7 +58,7 @@ function createContextMenu() {
 
 	browser.menus.create({
 		id: "blur",
-		title: "Blur",
+		title: "Blur element",
 		onclick(_, tab) {
 			browser.tabs.sendMessage(tab.id, {
 				command: "blur_element",
