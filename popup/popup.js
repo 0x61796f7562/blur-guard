@@ -1,13 +1,24 @@
-const blurToggleSwitchInput = document.getElementById(
-	"blur_toggle_switch_input",
+const blurToggleByHostnameSwitchInput = document.getElementById(
+	"blur_toggle_by_hostname_switch_input",
 );
-const blurToggleSwitch = document.getElementById("blur_toggle_switch");
+const blurToggleByHostnameSwitch = document.getElementById(
+	"blur_toggle_by_hostname_switch",
+);
 
-const blurToggleSwitchInputGlobal = document.getElementById(
-	"blur_toggle_switch_input_global",
+const blurToggleGlobalSwitchInput = document.getElementById(
+	"blur_toggle_global_switch_input",
 );
-const blurToggleSwitchGlobal = document.getElementById(
-	"blur_toggle_switch_global",
+const blurToggleGlobalSwitch = document.getElementById(
+	"blur_toggle_global_switch",
+);
+const saveChangesToggleSwitchInput = document.getElementById(
+	"save_changes_toggle_switch_input",
+);
+const saveChangesToggleSwitch = document.getElementById(
+	"save_changes_toggle_switch",
+);
+const resetSavedChangesButtonByHostname = document.getElementById(
+	"reset_by_hostname_button",
 );
 
 function applySettings() {
@@ -20,41 +31,71 @@ function applySettings() {
 				let globalOptionsValue = options["global_options"];
 				if (hostnameOptionsValue) {
 					if (!hostnameOptionsValue.enabled) {
-						blurToggleSwitch.title =
+						blurToggleByHostnameSwitch.title =
 							"Enable on this website (Ctrl+Alt+B)";
-						blurToggleSwitchInput.checked = false;
+						blurToggleByHostnameSwitchInput.checked = false;
 					} else {
-						blurToggleSwitch.title =
+						blurToggleByHostnameSwitch.title =
 							"Disable on this website (Ctrl+Alt+B)";
-						blurToggleSwitchInput.checked = true;
+						blurToggleByHostnameSwitchInput.checked = true;
+					}
+					if (
+						!hostnameOptionsValue.blured_elements &&
+						!hostnameOptionsValue.unblured_elements
+					) {
+						resetSavedChangesButtonByHostname.disabled = true;
+						resetSavedChangesButtonByHostname.style.backgroundColor =
+							"gray";
+						resetSavedChangesButtonByHostname.style.cursor =
+							"not-allowed";
 					}
 				} else {
-					blurToggleSwitch.title =
+					blurToggleByHostnameSwitch.title =
 						"Disable on this website (Ctrl+Alt+B)";
-					blurToggleSwitchInput.checked = true;
+					blurToggleByHostnameSwitchInput.checked = true;
+
+					resetSavedChangesButtonByHostname.disabled = true;
+					resetSavedChangesButtonByHostname.style.backgroundColor =
+						"gray";
+					resetSavedChangesButtonByHostname.style.cursor =
+						"not-allowed";
 				}
 				if (globalOptionsValue) {
 					if (!globalOptionsValue.enabled) {
-						blurToggleSwitchGlobal.title = "Enable on all websites";
-						blurToggleSwitchInputGlobal.checked = false;
+						blurToggleGlobalSwitch.title = "Enable on all websites";
+						blurToggleGlobalSwitchInput.checked = false;
 
-						blurToggleSwitchInput.disabled = true;
-						blurToggleSwitch.style.filter = "grayscale(100%)";
-						blurToggleSwitch.querySelector(".slider").style.cursor =
-							"not-allowed";
+						blurToggleByHostnameSwitchInput.disabled = true;
+						blurToggleByHostnameSwitch.style.filter =
+							"grayscale(100%)";
+						blurToggleByHostnameSwitch.querySelector(
+							".slider",
+						).style.cursor = "not-allowed";
 					} else {
-						blurToggleSwitchGlobal.title =
+						blurToggleGlobalSwitch.title =
 							"Disable on all websites";
-						blurToggleSwitchInputGlobal.checked = true;
+						blurToggleGlobalSwitchInput.checked = true;
 
-						blurToggleSwitchInput.disabled = false;
-						blurToggleSwitch.style.filter = "";
-						blurToggleSwitch.querySelector(".slider").style.cursor =
-							"pointer";
+						blurToggleByHostnameSwitchInput.disabled = false;
+						blurToggleByHostnameSwitch.style.filter = "";
+						blurToggleByHostnameSwitch.querySelector(
+							".slider",
+						).style.cursor = "pointer";
+					}
+					if (!globalOptionsValue.save_changes) {
+						saveChangesToggleSwitch.title = "Enable saving changes";
+						saveChangesToggleSwitchInput.checked = false;
+					} else {
+						saveChangesToggleSwitch.title =
+							"Disable saving changes";
+						saveChangesToggleSwitchInput.checked = true;
 					}
 				} else {
-					blurToggleSwitchGlobal.title = "Disable on all websites";
-					blurToggleSwitchInputGlobal.checked = true;
+					blurToggleGlobalSwitch.title = "Disable on all websites";
+					blurToggleGlobalSwitchInput.checked = true;
+
+					saveChangesToggleSwitch.title = "Disable saving changes";
+					saveChangesToggleSwitchInput.checked = true;
 				}
 			});
 	});
@@ -67,7 +108,7 @@ function updateHostnameOptions() {
 			let hostnameOptionsValue = options[hostname];
 			hostnameOptionsValue = {
 				...hostnameOptionsValue,
-				enabled: blurToggleSwitchInput.checked,
+				enabled: blurToggleByHostnameSwitchInput.checked,
 			};
 			browser.storage.local
 				.set({
@@ -75,10 +116,10 @@ function updateHostnameOptions() {
 				})
 				.then(() => {
 					if (!hostnameOptionsValue.enabled) {
-						blurToggleSwitch.title =
+						blurToggleByHostnameSwitch.title =
 							"Enable on this website (Ctrl+Alt+B)";
 					} else {
-						blurToggleSwitch.title =
+						blurToggleByHostnameSwitch.title =
 							"Disable on this website (Ctrl+Alt+B)";
 					}
 				});
@@ -91,7 +132,8 @@ function updateGlobalOptions() {
 		let globalOptionsValue = options["global_options"];
 		globalOptionsValue = {
 			...globalOptionsValue,
-			enabled: blurToggleSwitchInputGlobal.checked,
+			enabled: blurToggleGlobalSwitchInput.checked,
+			save_changes: saveChangesToggleSwitchInput.checked,
 		};
 		browser.storage.local
 			.set({
@@ -99,19 +141,26 @@ function updateGlobalOptions() {
 			})
 			.then(() => {
 				if (!globalOptionsValue.enabled) {
-					blurToggleSwitchGlobal.title = "Enable on all websites";
+					blurToggleGlobalSwitch.title = "Enable on all websites";
 
-					blurToggleSwitchInput.disabled = true;
-					blurToggleSwitch.style.filter = "grayscale(100%)";
-					blurToggleSwitch.querySelector(".slider").style.cursor =
-						"not-allowed";
+					blurToggleByHostnameSwitchInput.disabled = true;
+					blurToggleByHostnameSwitch.style.filter = "grayscale(100%)";
+					blurToggleByHostnameSwitch.querySelector(
+						".slider",
+					).style.cursor = "not-allowed";
 				} else {
-					blurToggleSwitchGlobal.title = "Disable on all websites";
+					blurToggleGlobalSwitch.title = "Disable on all websites";
 
-					blurToggleSwitchInput.disabled = false;
-					blurToggleSwitch.style.filter = "";
-					blurToggleSwitch.querySelector(".slider").style.cursor =
-						"pointer";
+					blurToggleByHostnameSwitchInput.disabled = false;
+					blurToggleByHostnameSwitch.style.filter = "";
+					blurToggleByHostnameSwitch.querySelector(
+						".slider",
+					).style.cursor = "pointer";
+				}
+				if (!globalOptionsValue.save_changes) {
+					saveChangesToggleSwitch.title = "Enable saving changes";
+				} else {
+					saveChangesToggleSwitch.title = "Disable saving changes";
 				}
 			});
 	});
@@ -126,7 +175,7 @@ const sendBlurToggleCmd = (tabId, isGlobal = false) => {
 (() => {
 	applySettings();
 
-	blurToggleSwitchInput.addEventListener("click", () => {
+	blurToggleByHostnameSwitchInput.addEventListener("click", () => {
 		browser.tabs.query({ currentWindow: true, active: true }, (tabs) => {
 			const hostname = new URL(tabs[0].url).hostname;
 			browser.tabs.query({ url: `*://${hostname}/*` }, (tabs) => {
@@ -142,7 +191,7 @@ const sendBlurToggleCmd = (tabId, isGlobal = false) => {
 		});
 	});
 
-	blurToggleSwitchInputGlobal.addEventListener("click", (e) => {
+	blurToggleGlobalSwitchInput.addEventListener("click", (e) => {
 		browser.tabs.query({ url: `*://*/*` }, (tabs) => {
 			if (e.target.checked) {
 				Promise.allSettled(
@@ -164,5 +213,35 @@ const sendBlurToggleCmd = (tabId, isGlobal = false) => {
 				});
 			}
 		});
+	});
+
+	saveChangesToggleSwitchInput.addEventListener("click", () => {
+		updateGlobalOptions();
+	});
+
+	resetSavedChangesButtonByHostname.addEventListener("click", () => {
+		browser.tabs
+			.query({ currentWindow: true, active: true })
+			.then((tabs) => {
+				const hostname = new URL(tabs[0].url).hostname;
+				browser.storage.local.get(hostname).then((options) => {
+					const hostnameOptionsValue = options[hostname];
+					if (hostnameOptionsValue) {
+						delete hostnameOptionsValue.blured_elements;
+						delete hostnameOptionsValue.unblured_elements;
+						browser.storage.local
+							.set({
+								[hostname]: hostnameOptionsValue,
+							})
+							.then(() => {
+								resetSavedChangesButtonByHostname.disabled = true;
+								resetSavedChangesButtonByHostname.style.backgroundColor =
+									"gray";
+								resetSavedChangesButtonByHostname.style.cursor =
+									"not-allowed";
+							});
+					}
+				});
+			});
 	});
 })();

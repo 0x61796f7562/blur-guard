@@ -8,11 +8,25 @@
 	src: url(../fonts/Poppins-Regular.otf);
 }
 
+* {
+	padding: 0;
+	margin: 0;
+	box-sizing: border-box;
+}
+
 html {
 	font-family: poppins-regular;
 }
 
+.main_content {
+	padding: 1rem;
+	hr {
+		margin-bottom: 1rem;
+	}
+}
+
 .switch {
+	flex-shrink: 0;
 	position: relative;
 	display: inline-block;
 	width: 40px;
@@ -37,7 +51,7 @@ html {
 	bottom: 0;
 	right: 0;
 	background-color: #ccc;
-	transition: .4s;
+	transition: 0.4s;
 }
 
 .slider:before {
@@ -48,18 +62,18 @@ html {
 	left: 4px;
 	bottom: 3px;
 	background-color: white;
-	transition: .4s;
+	transition: 0.4s;
 }
 
-input:checked+.slider {
-	background-color: #2196F3;
+input:checked + .slider {
+	background-color: #2196f3;
 }
 
-input:focus+.slider {
-	box-shadow: 0 0 1px #2196F3;
+input:focus + .slider {
+	box-shadow: 0 0 1px #2196f3;
 }
 
-input:checked+.slider:before {
+input:checked + .slider:before {
 	transform: translateX(14px);
 }
 
@@ -72,16 +86,39 @@ input:checked+.slider:before {
 }
 
 .option {
+	width: 100%;
 	display: flex;
 	gap: 10px;
 	justify-content: space-between;
+	.text > p:nth-of-type(2) {
+		font-size: 0.7rem;
+		color: gray;
+	}
 }
 
 .options {
-	width: 200px;
+	width: 210px;
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
-	padding-inline: 10px;
-	padding-block: 5px;
+	gap: 0.5rem;
+}
+
+.group_option {
+	display: flex;
+	flex-direction: row;
+	justify-content: space-between;
+	row-gap: 0.5rem;
+	.reset_button {
+		flex-shrink: 0;
+		margin-left: 5px;
+		width: 24px;
+		height: 24px;
+		background-color: #d0021b;
+		border: none;
+		border-radius: 50%;
+		cursor: pointer;
+		svg {
+			width: 40%;
+		}
+	}
 }

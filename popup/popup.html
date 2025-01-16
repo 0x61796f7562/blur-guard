@@ -4,32 +4,68 @@
 		<link rel="stylesheet" href="./popup.css" />
 	</head>
 	<body>
-		<div class="options">
-			<div class="option">
-				<span>This website</span>
-				<label
-					class="switch"
-					id="blur_toggle_switch"
-					title="Disable Blur"
-					><input
-						type="checkbox"
-						id="blur_toggle_switch_input"
-						checked /><span class="slider round"></span
-				></label>
+		<main class="main_content">
+			<h1>Blur Guard</h1>
+			<hr />
+			<div class="options">
+				<div class="group_option">
+					<div class="option">
+						<span>This website</span>
+						<label
+							class="switch"
+							id="blur_toggle_by_hostname_switch"
+							title="Toggle"
+							><input
+								type="checkbox"
+								id="blur_toggle_by_hostname_switch_input"
+								checked /><span class="slider round"></span
+						></label>
+					</div>
+					<button
+						class="reset_button"
+						id="reset_by_hostname_button"
+						title="Clear saved elements"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 448 512"
+						>
+							<path
+								fill="#ffffff"
+								d="M32 464a48 48 0 0 0 48 48h288a48 48 0 0 0 48-48V128H32zm272-256a16 16 0 0 1 32 0v224a16 16 0 0 1 -32 0zm-96 0a16 16 0 0 1 32 0v224a16 16 0 0 1 -32 0zm-96 0a16 16 0 0 1 32 0v224a16 16 0 0 1 -32 0zM432 32H312l-9.4-18.7A24 24 0 0 0 281.1 0H166.8a23.7 23.7 0 0 0 -21.4 13.3L136 32H16A16 16 0 0 0 0 48v32a16 16 0 0 0 16 16h416a16 16 0 0 0 16-16V48a16 16 0 0 0 -16-16z"
+							/>
+						</svg>
+					</button>
+				</div>
+				<div class="option">
+					<span>All websites</span>
+					<label
+						class="switch"
+						id="blur_toggle_global_switch"
+						title="Toggle"
+						><input
+							type="checkbox"
+							id="blur_toggle_global_switch_input"
+							checked /><span class="slider round"></span
+					></label>
+				</div>
+				<div class="option">
+					<div class="text">
+						<p>Save</p>
+						<p>Save manually blured and unblured elements</p>
+					</div>
+					<label
+						class="switch"
+						id="save_changes_toggle_switch"
+						title="Toggle"
+						><input
+							type="checkbox"
+							id="save_changes_toggle_switch_input"
+							checked /><span class="slider round"></span
+					></label>
+				</div>
 			</div>
-			<div class="option">
-				<span>All websites</span>
-				<label
-					class="switch"
-					id="blur_toggle_switch_global"
-					title="Disable Blur"
-					><input
-						type="checkbox"
-						id="blur_toggle_switch_input_global"
-						checked /><span class="slider round"></span
-				></label>
-			</div>
-		</div>
+		</main>
 		<script src="./popup.js"></script>
 	</body>
 </html>

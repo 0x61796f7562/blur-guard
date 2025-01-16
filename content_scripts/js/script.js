@@ -6,7 +6,7 @@ function canIncludeDistraction(node) {
 	if (
 		computedStyle.backgroundImage.toLowerCase().includes("url") ||
 		computedStyle.background.toLowerCase().includes("url") ||
-		["IMG", "PICTURE", "VIDEO", "IFRAME"].includes(node.tagName)
+		["IMG", "VIDEO", "IFRAME"].includes(node.tagName)
 	) {
 		return true;
 	}
@@ -91,8 +91,12 @@ function setBlurFilter(rootNode, skipSavedElements = false) {
 		canIncludeDistraction(rootNode) &&
 		rootNode.tagName != "BODY"
 	) {
-		rootNode.style.setProperty("filter", filterValue, "important");
-		intersectionObserver.observe(rootNode);
+		isUnblured(skipSavedElements ? rootNode : null).then((skip) => {
+			if (!skip) {
+				rootNode.style.setProperty("filter", filterValue, "important");
+				intersectionObserver.observe(rootNode);
+			}
+		});
 	}
 
 	const treeWalker = document.createTreeWalker(
@@ -106,6 +110,9 @@ function setBlurFilter(rootNode, skipSavedElements = false) {
 			if (!skip) {
 				if (canIncludeDistraction(node) && node.tagName != "BODY") {
 					node.style.setProperty("filter", filterValue, "important");
+					if (node.tagName == "IFRAME") {
+						node.style.setProperty("pointer-events", "none");
+					}
 					intersectionObserver.observe(node);
 				}
 				if (node.openOrClosedShadowRoot && node.tagName != "VIDEO") {
@@ -129,8 +136,12 @@ function unsetBlurFilter(rootNode, skipSavedElements = false) {
 		canIncludeDistraction(rootNode) &&
 		rootNode.tagName != "BODY"
 	) {
-		rootNode.style.removeProperty("filter");
-		intersectionObserver.unobserve(rootNode);
+		isBlured(skipSavedElements ? rootNode : null).then((skip) => {
+			if (!skip) {
+				rootNode.style.removeProperty("filter");
+				intersectionObserver.unobserve(rootNode);
+			}
+		});
 	}
 
 	const treeWalker = document.createTreeWalker(
@@ -144,6 +155,9 @@ function unsetBlurFilter(rootNode, skipSavedElements = false) {
 			if (!skip) {
 				if (canIncludeDistraction(node) && node.tagName != "BODY") {
 					node.style.removeProperty("filter");
+					if (node.tagName == "IFRAME") {
+						node.style.removeProperty("pointer-events");
+					}
 					intersectionObserver.unobserve(node);
 				}
 				if (node.openOrClosedShadowRoot && node.tagName != "VIDEO") {
@@ -266,7 +280,9 @@ function showSelectionBox(element) {
 function removeSelectionBox(element) {
 	overlay.remove();
 	selectionBox.remove();
-	if (element) element.style.removeProperty("cursor");
+	if (element) {
+		element.style.removeProperty("cursor");
+	}
 }
 
 function startElementSelection() {
@@ -415,9 +431,16 @@ function saveUnbluredElement(element) {
 			.get(["global_options", hostname])
 			.then((options) => {
 				let globalOptionsValue = options["global_options"];
-				let globalEnabled = globalOptionsValue
-					? globalOptionsValue.enabled
-					: true;
+				let globalEnabled =
+					globalOptionsValue &&
+					globalOptionsValue.enabled != undefined
+						? globalOptionsValue.enabled
+						: true;
+				let saveChangesEnabled =
+					globalOptionsValue &&
+					globalOptionsValue.save_changes != undefined
+						? globalOptionsValue.save_changes
+						: true;
 
 				let hostnameOptionsValue = options[hostname];
 				let hostnameEnabled = hostnameOptionsValue
@@ -453,8 +476,10 @@ function saveUnbluredElement(element) {
 							unobserve(() => {
 								setBlurFilter(targetedElement);
 								stopElementSelection();
+								if (saveChangesEnabled) {
+									saveBluredElement(targetedElement);
+								}
 							});
-							saveBluredElement(targetedElement);
 						},
 						{ once: true, capture: true },
 					);
@@ -471,8 +496,10 @@ function saveUnbluredElement(element) {
 							unobserve(() => {
 								unsetBlurFilter(targetedElement);
 								stopElementSelection();
+								if (saveChangesEnabled) {
+									saveUnbluredElement(targetedElement);
+								}
 							});
-							saveUnbluredElement(targetedElement);
 						},
 						{ once: true, capture: true },
 					);
