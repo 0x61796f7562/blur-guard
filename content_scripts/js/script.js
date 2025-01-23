@@ -1,5 +1,134 @@
 const filterValue = "blur(15px)";
-const firstPageLoadDelay = 1000;
+let hostname, hostnameOptions, globalOptions;
+const unsavedElements = {
+	blured: new Set(),
+	unblured: new Set(),
+};
+const selectorCache = new Map();
+
+(async () => {
+	if (window.blur_guard_extension_loaded) return;
+	window.blur_guard_extension_loaded = true;
+
+	await getOptions();
+
+	let hostnameOptionsValue = hostnameOptions;
+	let globalOptionsValue = globalOptions;
+	if (
+		!globalOptionsValue ||
+		(globalOptionsValue && globalOptionsValue.enabled)
+	) {
+		if (hostnameOptionsValue) {
+			if (hostnameOptionsValue.enabled) {
+				applyPageBlur();
+			}
+		} else {
+			applyPageBlur();
+		}
+	}
+
+	browser.runtime.onMessage.addListener(async ({ command, isGlobal }) => {
+		await getOptions();
+
+		let globalOptionsValue = globalOptions;
+		let globalEnabled =
+			globalOptionsValue && globalOptionsValue.enabled != undefined
+				? globalOptionsValue.enabled
+				: true;
+		let saveChangesEnabled =
+			globalOptionsValue && globalOptionsValue.save_changes != undefined
+				? globalOptionsValue.save_changes
+				: true;
+
+		let hostnameOptionsValue = hostnameOptions;
+		let hostnameEnabled = hostnameOptionsValue
+			? hostnameOptionsValue.enabled
+			: true;
+
+		if (command == "blur_toggle") {
+			if (isGlobal) {
+				if (!globalEnabled) {
+					if (hostnameEnabled) {
+						applyPageBlur();
+					}
+				} else {
+					removePageBlur();
+				}
+			} else {
+				if (!hostnameEnabled) {
+					applyPageBlur();
+				} else {
+					removePageBlur();
+				}
+			}
+		} else if (command == "blur_element") {
+			const { stopElementSelection, selectionAbortSignal } =
+				startElementSelection();
+			document.body.addEventListener(
+				"click",
+				(e) => {
+					e.preventDefault();
+					e.stopImmediatePropagation();
+					const targetedElement = e.composed
+						? e.composedPath()[0]
+						: e.target;
+					unobserve(() => {
+						setBlurFilter(targetedElement);
+						stopElementSelection();
+						if (saveChangesEnabled) {
+							saveBluredElement(targetedElement);
+						} else {
+							unsavedElements.blured.add(
+								getCSSSelector(targetedElement),
+							);
+						}
+					});
+				},
+				{
+					once: true,
+					capture: true,
+					signal: selectionAbortSignal,
+				},
+			);
+		} else if (command == "unblur_element") {
+			const { stopElementSelection, selectionAbortSignal } =
+				startElementSelection();
+			document.body.addEventListener(
+				"click",
+				(e) => {
+					e.preventDefault();
+					e.stopImmediatePropagation();
+					const targetedElement = e.composed
+						? e.composedPath()[0]
+						: e.target;
+					unobserve(() => {
+						unsetBlurFilter(targetedElement);
+						stopElementSelection();
+						if (saveChangesEnabled) {
+							saveUnbluredElement(targetedElement);
+						} else {
+							unsavedElements.unblured.add(
+								getCSSSelector(targetedElement),
+							);
+						}
+					});
+				},
+				{
+					once: true,
+					capture: true,
+					signal: selectionAbortSignal,
+				},
+			);
+		}
+	});
+})();
+
+async function getOptions() {
+	hostname = window.location.hostname;
+	options = await browser.storage.local.get([hostname, "global_options"]);
+	hostnameOptions = options[hostname];
+	globalOptions = options["global_options"];
+}
 
 function canIncludeDistraction(node) {
 	computedStyle = getComputedStyle(node);
@@ -13,16 +142,12 @@ function canIncludeDistraction(node) {
 	return false;
 }
 
-const selectorCache = new Map();
-
-async function isBlured(element) {
+function isBlured(element) {
 	if (!element) return false;
-	const hostname = window.location.hostname;
-	const options = await browser.storage.local.get([hostname]);
-	const hostnameOptionsValue = options[hostname];
-	if (!hostnameOptionsValue) return false;
-	if (!hostnameOptionsValue.blured_elements) return false;
-	return hostnameOptionsValue.blured_elements.some((elementPathStr) => {
+	const savedBluredElements = hostnameOptions?.blured_elements || [];
+	return Array.from(
+		new Set([...savedBluredElements, ...unsavedElements.blured]),
+	).some((elementPathStr) => {
 		const elementPath = elementPathStr.split(" >>> ");
 		if (elementPath.length == 1) {
 			const bluredElement = document.querySelector(elementPath[0]);
@@ -50,14 +175,12 @@ async function isBlured(element) {
 	});
 }
 
-async function isUnblured(element) {
+function isUnblured(element) {
 	if (!element) return false;
-	const hostname = window.location.hostname;
-	const options = await browser.storage.local.get([hostname]);
-	const hostnameOptionsValue = options[hostname];
-	if (!hostnameOptionsValue) return false;
-	if (!hostnameOptionsValue.unblured_elements) return false;
-	return hostnameOptionsValue.unblured_elements.some((elementPathStr) => {
+	const savedUnbluredElements = hostnameOptions?.unblured_elements || [];
+	return Array.from(
+		new Set([...savedUnbluredElements, ...unsavedElements.unblured]),
+	).some((elementPathStr) => {
 		const elementPath = elementPathStr.split(" >>> ");
 		if (elementPath.length == 1) {
 			const unbluredElement = document.querySelector(elementPath[0]);
@@ -91,12 +214,11 @@ function setBlurFilter(rootNode, skipSavedElements = false) {
 		canIncludeDistraction(rootNode) &&
 		rootNode.tagName != "BODY"
 	) {
-		isUnblured(skipSavedElements ? rootNode : null).then((skip) => {
-			if (!skip) {
-				rootNode.style.setProperty("filter", filterValue, "important");
-				intersectionObserver.observe(rootNode);
-			}
-		});
+		const skip = isUnblured(skipSavedElements ? rootNode : null);
+		if (!skip) {
+			rootNode.style.setProperty("filter", filterValue, "important");
+			intersectionObserver.observe(rootNode);
+		}
 	}
 
 	const treeWalker = document.createTreeWalker(
@@ -106,27 +228,20 @@ function setBlurFilter(rootNode, skipSavedElements = false) {
 
 	while (treeWalker.nextNode()) {
 		const node = treeWalker.currentNode;
-		isUnblured(skipSavedElements ? node : null).then((skip) => {
-			if (!skip) {
-				if (canIncludeDistraction(node) && node.tagName != "BODY") {
-					node.style.setProperty("filter", filterValue, "important");
-					if (node.tagName == "IFRAME") {
-						node.style.setProperty("pointer-events", "none");
-					}
-					intersectionObserver.observe(node);
-				}
-				if (node.openOrClosedShadowRoot && node.tagName != "VIDEO") {
-					mutationObserver.observe(
-						node.openOrClosedShadowRoot,
-						mutationObserverOptions,
-					);
-					setBlurFilter(
-						node.openOrClosedShadowRoot,
-						skipSavedElements,
-					);
-				}
+		const skip = isUnblured(skipSavedElements ? node : null);
+		if (!skip) {
+			if (canIncludeDistraction(node) && node.tagName != "BODY") {
+				node.style.setProperty("filter", filterValue, "important");
+				intersectionObserver.observe(node);
 			}
-		});
+			if (node.openOrClosedShadowRoot) {
+				mutationObserver.observe(
+					node.openOrClosedShadowRoot,
+					mutationObserverOptions,
+				);
+				setBlurFilter(node.openOrClosedShadowRoot, skipSavedElements);
+			}
+		}
 	}
 }
 
@@ -136,12 +251,11 @@ function unsetBlurFilter(rootNode, skipSavedElements = false) {
 		canIncludeDistraction(rootNode) &&
 		rootNode.tagName != "BODY"
 	) {
-		isBlured(skipSavedElements ? rootNode : null).then((skip) => {
-			if (!skip) {
-				rootNode.style.removeProperty("filter");
-				intersectionObserver.unobserve(rootNode);
-			}
-		});
+		const skip = isBlured(skipSavedElements ? rootNode : null);
+		if (!skip) {
+			rootNode.style.removeProperty("filter");
+			intersectionObserver.unobserve(rootNode);
+		}
 	}
 
 	const treeWalker = document.createTreeWalker(
@@ -151,23 +265,16 @@ function unsetBlurFilter(rootNode, skipSavedElements = false) {
 
 	while (treeWalker.nextNode()) {
 		const node = treeWalker.currentNode;
-		isBlured(skipSavedElements ? node : null).then((skip) => {
-			if (!skip) {
-				if (canIncludeDistraction(node) && node.tagName != "BODY") {
-					node.style.removeProperty("filter");
-					if (node.tagName == "IFRAME") {
-						node.style.removeProperty("pointer-events");
-					}
-					intersectionObserver.unobserve(node);
-				}
-				if (node.openOrClosedShadowRoot && node.tagName != "VIDEO") {
-					unsetBlurFilter(
-						node.openOrClosedShadowRoot,
-						skipSavedElements,
-					);
-				}
+		const skip = isBlured(skipSavedElements ? node : null);
+		if (!skip) {
+			if (canIncludeDistraction(node) && node.tagName != "BODY") {
+				node.style.removeProperty("filter");
+				intersectionObserver.unobserve(node);
 			}
-		});
+			if (node.openOrClosedShadowRoot) {
+				unsetBlurFilter(node.openOrClosedShadowRoot, skipSavedElements);
+			}
+		}
 	}
 }
 
@@ -177,7 +284,7 @@ const intersectionObserver = new IntersectionObserver(
 			if (entry.isIntersecting) setBlurFilter(entry.target, true);
 		});
 	},
-	{ threshold: 0 },
+	{ threshold: 0.1 },
 );
 
 const mutationObserverOptions = {
@@ -187,29 +294,37 @@ const mutationObserverOptions = {
 };
 
 const mutationObserver = new MutationObserver((mutations) => {
-	unobserve(() => {
-		for (const { type, attributeName, addedNodes, target } of mutations) {
-			if (type == "childList") {
-				if (addedNodes) {
-					addedNodes.forEach((node) => {
-						setBlurFilter(node, true);
-					});
-				}
-			} else if (type == "attributes") {
-				if (attributeName == "style") {
-					if (canIncludeDistraction(target)) {
-						if (getComputedStyle(target).filter != filterValue) {
-							setBlurFilter(target, true);
-						}
+	for (const { type, attributeName, addedNodes, target } of mutations) {
+		if (type == "childList") {
+			if (addedNodes) {
+				addedNodes.forEach((node) => {
+					setBlurFilter(node, true);
+				});
+			}
+		} else if (type == "attributes") {
+			if (attributeName == "style") {
+				if (canIncludeDistraction(target)) {
+					if (getComputedStyle(target).filter != filterValue) {
+						setBlurFilter(target, true);
 					}
 				}
 			}
 		}
-	});
+	}
 });
 
-function startObserver() {
-	mutationObserver.observe(document.body, mutationObserverOptions);
+async function startObserver() {
+	let globalEnabled =
+		globalOptions && globalOptions.enabled != undefined
+			? globalOptions.enabled
+			: true;
+
+	let hostnameEnabled = hostnameOptions ? hostnameOptions.enabled : true;
+
+	const isObserved = globalEnabled && hostnameEnabled;
+	if (isObserved) {
+		mutationObserver.observe(document.body, mutationObserverOptions);
+	}
 }
 
 function stopObserver() {
@@ -230,11 +345,9 @@ function applyPageBlur() {
 
 	if (document.readyState == "loading") {
 		document.addEventListener("DOMContentLoaded", () => {
-			setTimeout(() => {
-				setBlurFilter(document.body, true);
-				bodyBlurStyle.remove();
-				startObserver();
-			}, firstPageLoadDelay);
+			setBlurFilter(document.body, true);
+			bodyBlurStyle.remove();
+			startObserver();
 		});
 	} else {
 		setBlurFilter(document.body, true);
@@ -285,19 +398,71 @@ function removeSelectionBox(element) {
 	}
 }
 
+function prepareIframesForSelection(rootNode = document.body) {
+	const treeWalker = document.createTreeWalker(
+		rootNode,
+		NodeFilter.SHOW_ELEMENT,
+	);
+	while (treeWalker.nextNode()) {
+		const currentNode = treeWalker.currentNode;
+		if (currentNode.tagName == "IFRAME") {
+			currentNode.style.setProperty(
+				"pointer-events",
+				"none",
+				"important",
+			);
+		}
+		if (currentNode.openOrClosedShadowRoot) {
+			prepareIframesForSelection(currentNode.openOrClosedShadowRoot);
+		}
+	}
+}
+
+function resetIframesAfterSelection(rootNode = document.body) {
+	const treeWalker = document.createTreeWalker(
+		rootNode,
+		NodeFilter.SHOW_ELEMENT,
+	);
+	while (treeWalker.nextNode()) {
+		const currentNode = treeWalker.currentNode;
+		if (currentNode.tagName == "IFRAME") {
+			currentNode.style.removeProperty("pointer-events");
+		}
+		if (currentNode.openOrClosedShadowRoot) {
+			resetIframesAfterSelection(currentNode.openOrClosedShadowRoot);
+		}
+	}
+}
+
 function startElementSelection() {
+	prepareIframesForSelection();
+
 	const selectionAbortController = new AbortController();
 	let selectedElement;
+	let animationFrameId;
 	document.body.addEventListener(
 		"mousemove",
 		(e) => {
 			e.stopPropagation();
-			selectedElement = e.composed ? e.composedPath()[0] : e.target;
+			const currentSelectedElement = e.composed
+				? e.composedPath()[0]
+				: e.target;
 			unobserve(() => {
-				showSelectionBox(selectedElement);
+				cancelAnimationFrame(animationFrameId);
+				animationFrameId = requestAnimationFrame(() => {
+					if (currentSelectedElement != selectedElement) {
+						if (selectedElement) {
+							removeSelectionBox(selectedElement);
+						}
+						selectedElement = currentSelectedElement;
+						showSelectionBox(selectedElement);
+					}
+				});
 			});
 		},
-		{ signal: selectionAbortController.signal },
+		{
+			signal: selectionAbortController.signal,
+		},
 	);
 	document.body.addEventListener(
 		"mouseout",
@@ -309,9 +474,26 @@ function startElementSelection() {
 		},
 		{ signal: selectionAbortController.signal },
 	);
-	return () => {
+
+	const stopElementSelection = () => {
 		removeSelectionBox(selectedElement);
 		selectionAbortController.abort();
+		resetIframesAfterSelection();
+	};
+
+	window.addEventListener(
+		"keydown",
+		(e) => {
+			if (e.key == "Escape") {
+				stopElementSelection();
+			}
+		},
+		{ signal: selectionAbortController.signal },
+	);
+
+	return {
+		stopElementSelection,
+		selectionAbortSignal: selectionAbortController.signal,
 	};
 }
 
@@ -353,157 +535,47 @@ function getCSSSelector(element) {
 }
 
 function saveBluredElement(element) {
-	const hostname = window.location.hostname;
-	browser.storage.local.get([hostname]).then((options) => {
-		let hostnameOptionsValue = options[hostname] || { enabled: true };
-		hostnameOptionsValue = {
-			...hostnameOptionsValue,
-			blured_elements: [
-				...new Set([
-					...(hostnameOptionsValue.blured_elements
-						? hostnameOptionsValue.blured_elements
-						: []),
-					getCSSSelector(element),
-				]),
-			],
-			unblured_elements: hostnameOptionsValue.unblured_elements
-				? hostnameOptionsValue.unblured_elements.filter(
-						(el) => getCSSSelector(element) != el,
-					)
-				: [],
-		};
-		browser.storage.local.set({
-			[hostname]: hostnameOptionsValue,
-		});
+	let hostnameOptionsValue = hostnameOptions || { enabled: true };
+	hostnameOptionsValue = {
+		...hostnameOptionsValue,
+		blured_elements: [
+			...new Set([
+				...(hostnameOptionsValue.blured_elements
+					? hostnameOptionsValue.blured_elements
+					: []),
+				getCSSSelector(element),
+			]),
+		],
+		unblured_elements: hostnameOptionsValue.unblured_elements
+			? hostnameOptionsValue.unblured_elements.filter(
+					(el) => getCSSSelector(element) != el,
+				)
+			: [],
+	};
+	browser.storage.local.set({
+		[hostname]: hostnameOptionsValue,
 	});
 }
 
 function saveUnbluredElement(element) {
-	const hostname = window.location.hostname;
-	browser.storage.local.get([hostname]).then((options) => {
-		let hostnameOptionsValue = options[hostname] || { enabled: true };
-		hostnameOptionsValue = {
-			...hostnameOptionsValue,
-			unblured_elements: [
-				...new Set([
-					...(hostnameOptionsValue.unblured_elements
-						? hostnameOptionsValue.unblured_elements
-						: []),
-					getCSSSelector(element),
-				]),
-			],
-			blured_elements: hostnameOptionsValue.blured_elements
-				? hostnameOptionsValue.blured_elements.filter(
-						(el) => getCSSSelector(element) != el,
-					)
-				: [],
-		};
-		browser.storage.local.set({
-			[hostname]: hostnameOptionsValue,
-		});
+	let hostnameOptionsValue = hostnameOptions || { enabled: true };
+	hostnameOptionsValue = {
+		...hostnameOptionsValue,
+		unblured_elements: [
+			...new Set([
+				...(hostnameOptionsValue.unblured_elements
+					? hostnameOptionsValue.unblured_elements
+					: []),
+				getCSSSelector(element),
+			]),
+		],
+		blured_elements: hostnameOptionsValue.blured_elements
+			? hostnameOptionsValue.blured_elements.filter(
+					(el) => getCSSSelector(element) != el,
+				)
+			: [],
+	};
+	browser.storage.local.set({
+		[hostname]: hostnameOptionsValue,
 	});
 }
-
-(() => {
-	if (window.blur_guard_extension_loaded) return;
-	window.blur_guard_extension_loaded = true;
-
-	const hostname = window.location.hostname;
-	browser.storage.local.get(["global_options", hostname]).then((options) => {
-		let hostnameOptionsValue = options[hostname];
-		let globalOptionsValue = options["global_options"];
-		if (
-			!globalOptionsValue ||
-			(globalOptionsValue && globalOptionsValue.enabled)
-		) {
-			if (hostnameOptionsValue) {
-				if (hostnameOptionsValue.enabled) {
-					applyPageBlur();
-				}
-			} else {
-				applyPageBlur();
-			}
-		}
-	});
-
-	browser.runtime.onMessage.addListener(({ command, isGlobal }) => {
-		browser.storage.local
-			.get(["global_options", hostname])
-			.then((options) => {
-				let globalOptionsValue = options["global_options"];
-				let globalEnabled =
-					globalOptionsValue &&
-					globalOptionsValue.enabled != undefined
-						? globalOptionsValue.enabled
-						: true;
-				let saveChangesEnabled =
-					globalOptionsValue &&
-					globalOptionsValue.save_changes != undefined
-						? globalOptionsValue.save_changes
-						: true;
-
-				let hostnameOptionsValue = options[hostname];
-				let hostnameEnabled = hostnameOptionsValue
-					? hostnameOptionsValue.enabled
-					: true;
-
-				if (command == "blur_toggle") {
-					if (isGlobal) {
-						if (!globalEnabled) {
-							if (hostnameEnabled) {
-								applyPageBlur();
-							}
-						} else {
-							removePageBlur();
-						}
-					} else {
-						if (!hostnameEnabled) {
-							applyPageBlur();
-						} else {
-							removePageBlur();
-						}
-					}
-				} else if (command == "blur_element") {
-					const stopElementSelection = startElementSelection();
-					document.body.addEventListener(
-						"click",
-						(e) => {
-							e.preventDefault();
-							e.stopImmediatePropagation();
-							const targetedElement = e.composed
-								? e.composedPath()[0]
-								: e.target;
-							unobserve(() => {
-								setBlurFilter(targetedElement);
-								stopElementSelection();
-								if (saveChangesEnabled) {
-									saveBluredElement(targetedElement);
-								}
-							});
-						},
-						{ once: true, capture: true },
-					);
-				} else if (command == "unblur_element") {
-					const stopElementSelection = startElementSelection();
-					document.body.addEventListener(
-						"click",
-						(e) => {
-							e.preventDefault();
-							e.stopImmediatePropagation();
-							const targetedElement = e.composed
-								? e.composedPath()[0]
-								: e.target;
-							unobserve(() => {
-								unsetBlurFilter(targetedElement);
-								stopElementSelection();
-								if (saveChangesEnabled) {
-									saveUnbluredElement(targetedElement);
-								}
-							});
-						},
-						{ once: true, capture: true },
-					);
-				}
-			});
-	});
-})();

@@ -106,11 +106,10 @@ input:checked + .slider:before {
 .group_option {
 	display: flex;
 	flex-direction: row;
-	justify-content: space-between;
-	row-gap: 0.5rem;
+	align-items: center;
+	gap: 0.2rem;
 	.reset_button {
 		flex-shrink: 0;
-		margin-left: 5px;
 		width: 24px;
 		height: 24px;
 		background-color: #d0021b;
