@@ -1,22 +1,39 @@
-function updateHostnameOptions() {
+function updateHostnameOption(option, newValue) {
 	browser.tabs.query({ currentWindow: true, active: true }).then((tabs) => {
 		const hostname = new URL(tabs[0].url).hostname;
 		browser.storage.local.get(hostname).then((hostnameOptions) => {
 			let hostnameOptionsValue = hostnameOptions[hostname];
 			hostnameOptionsValue = {
 				...hostnameOptionsValue,
-				enabled: hostnameOptionsValue
-					? !hostnameOptionsValue.enabled
-					: false,
+				[option]:
+					newValue ??
+					(hostnameOptionsValue
+						? !hostnameOptionsValue[option]
+						: false),
 			};
 			browser.storage.local.set({ [hostname]: hostnameOptionsValue });
 		});
 	});
 }
 
-const sendBlurToggleCmd = (tabId) => {
+function updateGlobalOption(option, newValue) {
+	browser.storage.local.get("global_options").then((options) => {
+		let globalOptionsValue = options["global_options"];
+		globalOptionsValue = {
+			...globalOptionsValue,
+			[option]:
+				newValue ??
+				(globalOptionsValue ? !globalOptionsValue[option] : false),
+		};
+		browser.storage.local.set({
+			global_options: globalOptionsValue,
+		});
+	});
+}
+
+const sendBlurToggleCmd = (tabId, isGlobal = false) => {
 	return browser.tabs
-		.sendMessage(tabId, { command: "blur_toggle" })
+		.sendMessage(tabId, { command: "blur_toggle", isGlobal })
 		.catch((_) => {});
 };
 
@@ -49,6 +66,9 @@ function createContextMenu() {
 	browser.menus.create({
 		id: "unblur",
 		title: "Unblur element",
+		icons: {
+			16: "icons/eye-solid.svg",
+		},
 		onclick(_, tab) {
 			browser.tabs.sendMessage(tab.id, {
 				command: "unblur_element",
@@ -59,6 +79,9 @@ function createContextMenu() {
 	browser.menus.create({
 		id: "blur",
 		title: "Blur element",
+		icons: {
+			16: "icons/eye-slash-solid.svg",
+		},
 		onclick(_, tab) {
 			browser.tabs.sendMessage(tab.id, {
 				command: "blur_element",
@@ -97,6 +120,34 @@ function removeContextMenu() {
 		});
 	});
 
+	browser.runtime.onMessage.addListener(({ command, hostname }) => {
+		if (command == "hostname_enabled_toggle") {
+			browser.tabs.query({ url: `*://${hostname}/*` }, (tabs) => {
+				Promise.allSettled(
+					tabs.map((tab) => {
+						const { id: tabId } = tab;
+						return sendBlurToggleCmd(tabId);
+					}),
+				).then(() => {
+					updateHostnameOption("enabled");
+				});
+			});
+		} else if (command == "global_enabled_toggle") {
+			browser.tabs.query({ url: `*://*/*` }, (tabs) => {
+				Promise.allSettled(
+					tabs.map((tab) => {
+						const { id: tabId } = tab;
+						return sendBlurToggleCmd(tabId, true);
+					}),
+				).then(() => {
+					updateGlobalOption("enabled");
+				});
+			});
+		} else if (command == "global_save_changes_toggle") {
+			updateGlobalOption("save_changes");
+		}
+	});
+
 	browser.commands.onCommand.addListener((command) => {
 		if (command == "blur_toggle") {
 			browser.storage.local
@@ -120,7 +171,7 @@ function removeContextMenu() {
 												return sendBlurToggleCmd(tabId);
 											}),
 										).then(() => {
-											updateHostnameOptions();
+											updateHostnameOption("enabled");
 										});
 									},
 								);
